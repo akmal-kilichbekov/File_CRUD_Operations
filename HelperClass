@@ -4,6 +4,10 @@ CLASS zcl_file_crud_operations DEFINITION
   CREATE PUBLIC .
 
   PUBLIC SECTION.
+    TYPES: BEGIN OF ty_field_name,
+             fieldname TYPE fieldname,
+           END OF ty_field_name.
+
     METHODS validation
       IMPORTING iv_first_block    TYPE boolean
                 iv_table_name     TYPE tabname OPTIONAL
@@ -33,6 +37,8 @@ CLASS zcl_file_crud_operations DEFINITION
 
   PROTECTED SECTION.
   PRIVATE SECTION.
+    CONSTANTS cv_excel_extension TYPE string VALUE 'XLS'.
+
     DATA mr_data       TYPE REF TO data.
 
     METHODS generate_dynamic_table
@@ -42,6 +48,10 @@ CLASS zcl_file_crud_operations DEFINITION
     METHODS generate_table_entries
       IMPORTING iv_file_path         TYPE rlgrap-filename
       RETURNING VALUE(rv_table_name) TYPE tabname.
+
+    METHODS get_table_columns
+      IMPORTING iv_table_name    TYPE tabname
+      RETURNING VALUE(rt_fields) TYPE iuuc_t_ddfield.
 
 ENDCLASS.
 
@@ -58,7 +68,15 @@ CLASS ZCL_FILE_CRUD_OPERATIONS IMPLEMENTATION.
   METHOD display_records.
     " Data Declaration
     DATA lr_alv_object TYPE REF TO cl_salv_table.
-    DATA lr_data        TYPE REF TO data.
+    DATA lr_data       TYPE REF TO data.
+    DATA: lr_functions TYPE REF TO cl_salv_functions_list,
+          lr_layout    TYPE REF TO cl_salv_layout,
+          ls_key       TYPE        salv_s_layout_key,
+          lv_restrict  TYPE        salv_de_layout_restriction,
+          lr_events    TYPE REF TO cl_salv_events_table.
+
+    DATA: lr_content TYPE REF TO cl_salv_form_header_info,
+          l_text     TYPE string.
 
     FIELD-SYMBOLS: <ft_any_table>  TYPE ANY TABLE.
 
@@ -74,6 +92,7 @@ CLASS ZCL_FILE_CRUD_OPERATIONS IMPLEMENTATION.
       FROM (iv_table_name)
       INTO CORRESPONDING FIELDS OF TABLE <ft_any_table>.
 
+
     " ALV Display
     TRY.
         cl_salv_table=>factory( IMPORTING r_salv_table = lr_alv_object
@@ -83,7 +102,25 @@ CLASS ZCL_FILE_CRUD_OPERATIONS IMPLEMENTATION.
         RETURN.
     ENDTRY.
 
+    ls_key-report = sy-repid.
 
+    " Activate the toolbar
+    lr_functions = lr_alv_object->get_functions( ).
+    lr_functions->set_all( abap_true ).
+
+
+    " Manage layout information
+    lr_layout = lr_alv_object->get_layout( ).
+
+    lr_layout->set_key( ls_key ).
+
+    " Allow users to save layouts
+    lr_layout->set_save_restriction( cl_salv_layout=>restrict_none ).
+
+    " Set content information
+    lr_alv_object->set_top_of_list( NEW cl_salv_form_header_info( text    = |{ iv_table_name } table records.|
+                                                                  tooltip = |{ iv_table_name } table records.| ) ).
+    " Display the data
     lr_alv_object->display( ).
   ENDMETHOD.
 
@@ -143,6 +180,7 @@ CLASS ZCL_FILE_CRUD_OPERATIONS IMPLEMENTATION.
     DATA lr_data       TYPE REF TO data.
     DATA lv_path       TYPE string.
     DATA lv_fullpath   TYPE string.
+    DATA lt_field_name TYPE STANDARD TABLE OF ty_field_name.
 
     FIELD-SYMBOLS: <ft_any_table>  TYPE STANDARD TABLE.
 
@@ -161,11 +199,14 @@ CLASS ZCL_FILE_CRUD_OPERATIONS IMPLEMENTATION.
     " Proces if data is not initial
     DATA(lv_filename) = |Download Records { sy-datum }|.
 
+    " Append field names
+    lt_field_name = VALUE #( FOR ls_fieldname IN get_table_columns( iv_table_name ) ( CORRESPONDING #( ls_fieldname ) ) ).
+
     " Get Path and file name
     CALL METHOD cl_gui_frontend_services=>file_save_dialog
       EXPORTING
         window_title      = 'Enter File Name'
-        default_extension = 'XLSX'
+        default_extension = cv_excel_extension
         default_file_name = lv_filename
       CHANGING
         filename          = lv_filename
@@ -178,7 +219,8 @@ CLASS ZCL_FILE_CRUD_OPERATIONS IMPLEMENTATION.
         filename              = lv_filename
         write_field_separator = 'X'
       TABLES
-        data_tab              = <ft_any_table>.
+        data_tab              = <ft_any_table>
+        fieldnames            = lt_field_name.
   ENDMETHOD.
 
 
@@ -188,16 +230,19 @@ CLASS ZCL_FILE_CRUD_OPERATIONS IMPLEMENTATION.
 * | [--->] IV_TABLE_NAME                  TYPE        TABNAME
 * +--------------------------------------------------------------------------------------</SIGNATURE>
   METHOD download_table_format.
-    DATA lt_table_fields TYPE STANDARD TABLE OF ddfield.
     DATA lv_path       TYPE string.
     DATA lv_fullpath   TYPE string.
+    DATA lt_field_name TYPE STANDARD TABLE OF ty_field_name.
+    DATA lr_data       TYPE REF TO data.
 
-    " Get standard fields
-    CALL FUNCTION 'DD_NAMETAB_TO_DDFIELDS'
-      EXPORTING
-        tabname  = iv_table_name
-      TABLES
-        ddfields = lt_table_fields.
+    FIELD-SYMBOLS: <ft_any_table>  TYPE STANDARD TABLE.
+
+    " Generate dynamic select
+    DATA(lo_tabtype) = generate_dynamic_table( iv_table_name = iv_table_name ).
+
+    " Create any table
+    CREATE DATA lr_data TYPE HANDLE lo_tabtype.
+    ASSIGN lr_data->* TO <ft_any_table>.
 
     " Proces if data is not initial
     DATA(lv_filename) = |Download { iv_table_name } format { sy-datum }|.
@@ -206,12 +251,15 @@ CLASS ZCL_FILE_CRUD_OPERATIONS IMPLEMENTATION.
     CALL METHOD cl_gui_frontend_services=>file_save_dialog
       EXPORTING
         window_title      = 'Enter File Name'
-        default_extension = 'XLSX'
+        default_extension = cv_excel_extension
         default_file_name = lv_filename
       CHANGING
         filename          = lv_filename
         path              = lv_path
         fullpath          = lv_fullpath.
+
+    " Append field names
+    lt_field_name = VALUE #( FOR ls_fieldname IN get_table_columns( iv_table_name ) ( CORRESPONDING #( ls_fieldname ) ) ).
 
     " Processing with Excel downloading
     CALL FUNCTION 'GUI_DOWNLOAD'
@@ -219,7 +267,9 @@ CLASS ZCL_FILE_CRUD_OPERATIONS IMPLEMENTATION.
         filename              = lv_filename
         write_field_separator = 'X'
       TABLES
-        data_tab              = lt_table_fields.
+        data_tab              = <ft_any_table>
+        fieldnames            = lt_field_name.
+
   ENDMETHOD.
 
 
@@ -299,6 +349,22 @@ CLASS ZCL_FILE_CRUD_OPERATIONS IMPLEMENTATION.
 
     " Assign the table name
     rv_table_name = VALUE #( lt_fieldnames[ 1 ]-value OPTIONAL ).
+  ENDMETHOD.
+
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Instance Private Method ZCL_FILE_CRUD_OPERATIONS->GET_TABLE_COLUMNS
+* +-------------------------------------------------------------------------------------------------+
+* | [--->] IV_TABLE_NAME                  TYPE        TABNAME
+* | [<-()] RT_FIELDS                      TYPE        IUUC_T_DDFIELD
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  METHOD get_table_columns.
+    " Get standard fields
+    CALL FUNCTION 'DD_NAMETAB_TO_DDFIELDS'
+      EXPORTING
+        tabname  = iv_table_name
+      TABLES
+        ddfields = rt_fields.
   ENDMETHOD.
 
 
