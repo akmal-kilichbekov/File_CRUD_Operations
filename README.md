@@ -12,7 +12,9 @@ Following text elements should be maintained in the report:
 
 Text Elements:
 TEXT-001 -- Processing Table Records
+
 TEXT-002 -- Processing Upload and Modify
+
 TEXT-003 -- Download Table Format
 TEXT-004 -- View Records
 TEXT-005 -- Download Records
