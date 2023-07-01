@@ -1,9 +1,9 @@
 *&---------------------------------------------------------------------*
-*& Report erpminer_table_updates
+*& Report ZRP_UPLOAD_CRUD_FILE
 *&---------------------------------------------------------------------*
 *&
 *&---------------------------------------------------------------------*
-REPORT erpminer_table_updates.
+REPORT ZRP_UPLOAD_CRUD_FILE.
 
 TABLES sscrfields.
 DATA lv_message TYPE string.
