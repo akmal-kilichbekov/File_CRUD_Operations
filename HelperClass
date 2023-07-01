@@ -197,7 +197,7 @@ CLASS ZCL_FILE_CRUD_OPERATIONS IMPLEMENTATION.
       INTO CORRESPONDING FIELDS OF TABLE <ft_any_table>.
 
     " Proces if data is not initial
-    DATA(lv_filename) = |Download Records { sy-datum }|.
+    DATA(lv_filename) = |Download { iv_table_name } table records { sy-datum }|.
 
     " Append field names
     lt_field_name = VALUE #( FOR ls_fieldname IN get_table_columns( iv_table_name ) ( CORRESPONDING #( ls_fieldname ) ) ).
