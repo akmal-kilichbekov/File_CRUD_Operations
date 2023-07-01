@@ -1,7 +1,7 @@
 # File_CRUD_Operations
 CRUD operations report in SAP
 
-Main report name - ZRP_UPLOAD_CRUD_FILE
+Main report name - erpminer_table_updates
 Report contains basic validations for both input field and file upload path.
 In case of fields are not filled in both processing blocks, the main logic will not be executed.
 
