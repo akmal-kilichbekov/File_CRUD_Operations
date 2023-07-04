@@ -69,8 +69,7 @@ CLASS ZCL_FILE_CRUD_OPERATIONS IMPLEMENTATION.
     " Data Declaration
     DATA lr_alv_object TYPE REF TO cl_salv_table.
     DATA lr_data       TYPE REF TO data.
-    DATA: lr_functions TYPE REF TO cl_salv_functions_list,
-          lr_layout    TYPE REF TO cl_salv_layout,
+    DATA: lr_layout    TYPE REF TO cl_salv_layout,
           ls_key       TYPE        salv_s_layout_key,
           lv_restrict  TYPE        salv_de_layout_restriction,
           lr_events    TYPE REF TO cl_salv_events_table.
@@ -105,9 +104,7 @@ CLASS ZCL_FILE_CRUD_OPERATIONS IMPLEMENTATION.
     ls_key-report = sy-repid.
 
     " Activate the toolbar
-    lr_functions = lr_alv_object->get_functions( ).
-    lr_functions->set_all( abap_true ).
-
+    lr_alv_object->get_functions( )->set_all( abap_true ).
 
     " Manage layout information
     lr_layout = lr_alv_object->get_layout( ).
@@ -203,7 +200,7 @@ CLASS ZCL_FILE_CRUD_OPERATIONS IMPLEMENTATION.
     lt_field_name = VALUE #( FOR ls_fieldname IN get_table_columns( iv_table_name ) ( CORRESPONDING #( ls_fieldname ) ) ).
 
     " Get Path and file name
-    CALL METHOD cl_gui_frontend_services=>file_save_dialog
+    cl_gui_frontend_services=>file_save_dialog(
       EXPORTING
         window_title      = 'Enter File Name'
         default_extension = cv_excel_extension
@@ -211,7 +208,7 @@ CLASS ZCL_FILE_CRUD_OPERATIONS IMPLEMENTATION.
       CHANGING
         filename          = lv_filename
         path              = lv_path
-        fullpath          = lv_fullpath.
+        fullpath          = lv_fullpath ).
 
     " Processing with Excel downloading
     CALL FUNCTION 'GUI_DOWNLOAD'
