@@ -37,7 +37,7 @@ CLASS zcl_file_crud_operations DEFINITION
 
   PROTECTED SECTION.
   PRIVATE SECTION.
-    CONSTANTS cv_excel_extension TYPE string VALUE 'XLS'.
+    CONSTANTS cv_excel_extension TYPE string VALUE 'XLSX'.
 
     DATA mr_data       TYPE REF TO data.
 
@@ -50,8 +50,10 @@ CLASS zcl_file_crud_operations DEFINITION
       RETURNING VALUE(rv_table_name) TYPE tabname.
 
     METHODS get_table_columns
-      IMPORTING iv_table_name    TYPE tabname
-      RETURNING VALUE(rt_fields) TYPE iuuc_t_ddfield.
+      IMPORTING iv_table_name TYPE tabname
+      EXPORTING et_column     TYPE if_fdt_doc_spreadsheet=>t_column.
+
+
 
 ENDCLASS.
 
@@ -181,6 +183,7 @@ CLASS ZCL_FILE_CRUD_OPERATIONS IMPLEMENTATION.
     DATA lv_path       TYPE string.
     DATA lv_fullpath   TYPE string.
     DATA lt_field_name TYPE STANDARD TABLE OF ty_field_name.
+    DATA lv_result TYPE i.
 
     FIELD-SYMBOLS: <ft_any_table>  TYPE STANDARD TABLE.
 
@@ -197,30 +200,40 @@ CLASS ZCL_FILE_CRUD_OPERATIONS IMPLEMENTATION.
       INTO CORRESPONDING FIELDS OF TABLE <ft_any_table>.
 
     " Proces if data is not initial
-    DATA(lv_filename) = |Download { iv_table_name } table records { sy-datum }|.
-
-    " Append field names
-    lt_field_name = VALUE #( FOR ls_fieldname IN get_table_columns( iv_table_name ) ( CORRESPONDING #( ls_fieldname ) ) ).
+    DATA(lv_filename) = |Download { iv_table_name } records { sy-datum }.xlsx|.
 
     " Get Path and file name
     CALL METHOD cl_gui_frontend_services=>file_save_dialog
       EXPORTING
-        window_title      = 'Enter File Name'
-        default_extension = cv_excel_extension
         default_file_name = lv_filename
+        default_extension = 'xlsx'
+        file_filter       = |Excel-Data (*.xlsx)\|*.xlsx\|{ cl_gui_frontend_services=>filetype_all }|
       CHANGING
         filename          = lv_filename
         path              = lv_path
-        fullpath          = lv_fullpath.
+        fullpath          = lv_fullpath
+        user_action       = lv_result.
 
+    " Append field names
+    get_table_columns( EXPORTING iv_table_name = iv_table_name
+                       IMPORTING et_column     = DATA(lt_columns) ).
+
+    " Get Binary data
+    DATA(lv_bin_data) = cl_fdt_xl_spreadsheet=>if_fdt_doc_spreadsheet~create_document( columns       = lt_columns
+                                                                                       itab          = lr_data
+                                                                                       iv_sheet_name = |Download { iv_table_name } format|
+                                                                                       iv_call_type  = if_fdt_doc_spreadsheet=>gc_call_message_area ).
     " Processing with Excel downloading
+    CHECK lv_result = cl_gui_frontend_services=>action_ok.
+    DATA(lt_raw_data) = cl_bcs_convert=>xstring_to_solix( lv_bin_data ).
+
     CALL FUNCTION 'GUI_DOWNLOAD'
       EXPORTING
-        filename              = lv_filename
-        write_field_separator = 'X'
+        filename     = lv_fullpath
+        filetype     = 'BIN'
+        bin_filesize = xstrlen( lv_bin_data )
       TABLES
-        data_tab              = <ft_any_table>
-        fieldnames            = lt_field_name.
+        data_tab     = lt_raw_data.
   ENDMETHOD.
 
 
@@ -230,10 +243,13 @@ CLASS ZCL_FILE_CRUD_OPERATIONS IMPLEMENTATION.
 * | [--->] IV_TABLE_NAME                  TYPE        TABNAME
 * +--------------------------------------------------------------------------------------</SIGNATURE>
   METHOD download_table_format.
-    DATA lv_path       TYPE string.
-    DATA lv_fullpath   TYPE string.
-    DATA lt_field_name TYPE STANDARD TABLE OF ty_field_name.
-    DATA lr_data       TYPE REF TO data.
+    DATA lv_path        TYPE string.
+    DATA lv_fullpath    TYPE string.
+    DATA lt_field_name  TYPE if_fdt_doc_spreadsheet=>t_column. "STANDARD TABLE OF ty_field_name.
+    DATA lr_data        TYPE REF TO data.
+    DATA lv_result      TYPE i.
+    DATA lv_columm_name TYPE string.
+    DATA lt_column      TYPE if_fdt_doc_spreadsheet=>t_column.
 
     FIELD-SYMBOLS: <ft_any_table>  TYPE STANDARD TABLE.
 
@@ -245,31 +261,41 @@ CLASS ZCL_FILE_CRUD_OPERATIONS IMPLEMENTATION.
     ASSIGN lr_data->* TO <ft_any_table>.
 
     " Proces if data is not initial
-    DATA(lv_filename) = |Download { iv_table_name } format { sy-datum }|.
+    DATA(lv_filename) = |Download { iv_table_name } format { sy-datum }.xlsx|.
 
     " Get Path and file name
     CALL METHOD cl_gui_frontend_services=>file_save_dialog
       EXPORTING
-        window_title      = 'Enter File Name'
-        default_extension = cv_excel_extension
         default_file_name = lv_filename
+        default_extension = 'xlsx'
+        file_filter       = |Excel-Data (*.xlsx)\|*.xlsx\|{ cl_gui_frontend_services=>filetype_all }|
       CHANGING
         filename          = lv_filename
         path              = lv_path
-        fullpath          = lv_fullpath.
+        fullpath          = lv_fullpath
+        user_action       = lv_result.
 
     " Append field names
-    lt_field_name = VALUE #( FOR ls_fieldname IN get_table_columns( iv_table_name ) ( CORRESPONDING #( ls_fieldname ) ) ).
+    get_table_columns( EXPORTING iv_table_name = iv_table_name
+                       IMPORTING et_column     = DATA(lt_columns) ).
+
+    " Get Binary data
+    DATA(lv_bin_data) = cl_fdt_xl_spreadsheet=>if_fdt_doc_spreadsheet~create_document( columns       = lt_columns
+                                                                                       itab          = lr_data
+                                                                                       iv_sheet_name = |Download { iv_table_name } format|
+                                                                                       iv_call_type  = if_fdt_doc_spreadsheet=>gc_call_message_area ).
 
     " Processing with Excel downloading
+    CHECK lv_result EQ cl_gui_frontend_services=>action_ok.
+    DATA(lt_raw_data) = cl_bcs_convert=>xstring_to_solix( lv_bin_data ).
+
     CALL FUNCTION 'GUI_DOWNLOAD'
       EXPORTING
-        filename              = lv_filename
-        write_field_separator = 'X'
+        filename     = lv_fullpath
+        filetype     = 'BIN'
+        bin_filesize = xstrlen( lv_bin_data )
       TABLES
-        data_tab              = <ft_any_table>
-        fieldnames            = lt_field_name.
-
+        data_tab     = lt_raw_data.
   ENDMETHOD.
 
 
@@ -312,8 +338,8 @@ CLASS ZCL_FILE_CRUD_OPERATIONS IMPLEMENTATION.
         filename    = iv_file_path
         i_begin_col = 1
         i_begin_row = 1
-        i_end_col   = 13
-        i_end_row   = 8
+        i_end_col   = 1300
+        i_end_row   = 1800
       TABLES
         intern      = lt_excel_data.
 
@@ -324,7 +350,7 @@ CLASS ZCL_FILE_CRUD_OPERATIONS IMPLEMENTATION.
     " Get the only field names
     lt_fieldnames = VALUE #( FOR ls_excel IN lt_excel_data WHERE ( row = 1 ) ( CORRESPONDING #( ls_excel ) ) ).
 
-    DATA(lo_tabtype) = generate_dynamic_table( CONV #( lt_excel_data[ row = 1 col = 1 ]-value ) ).
+    DATA(lo_tabtype) = generate_dynamic_table( CONV #( lt_excel_data[ row = 2 col = 1 ]-value ) ).
 
     " Create any table
     CLEAR mr_data.
@@ -332,9 +358,10 @@ CLASS ZCL_FILE_CRUD_OPERATIONS IMPLEMENTATION.
     ASSIGN mr_data->* TO <ft_any_table>.
 
     " Process with data mapping
-    LOOP AT lt_excel_data ASSIGNING FIELD-SYMBOL(<fs_excel_data>) WHERE row > 1.
+    LOOP AT lt_excel_data ASSIGNING FIELD-SYMBOL(<fs_excel_data>) WHERE row > 1
+                                                                    AND col > 1.
       " Assign new table data
-      IF <fs_excel_data>-col = 1.
+      IF <fs_excel_data>-col = 2.
         APPEND INITIAL LINE TO <ft_any_table> ASSIGNING FIELD-SYMBOL(<fs_uploaded_entry>).
       ENDIF.
 
@@ -348,7 +375,7 @@ CLASS ZCL_FILE_CRUD_OPERATIONS IMPLEMENTATION.
     CHECK <ft_any_table> IS NOT INITIAL.
 
     " Assign the table name
-    rv_table_name = VALUE #( lt_fieldnames[ 1 ]-value OPTIONAL ).
+    rv_table_name = VALUE #( lt_excel_data[ col = 1 row = 2 ]-value OPTIONAL ).
   ENDMETHOD.
 
 
@@ -356,15 +383,22 @@ CLASS ZCL_FILE_CRUD_OPERATIONS IMPLEMENTATION.
 * | Instance Private Method ZCL_FILE_CRUD_OPERATIONS->GET_TABLE_COLUMNS
 * +-------------------------------------------------------------------------------------------------+
 * | [--->] IV_TABLE_NAME                  TYPE        TABNAME
-* | [<-()] RT_FIELDS                      TYPE        IUUC_T_DDFIELD
+* | [<---] ET_COLUMN                      TYPE        IF_FDT_DOC_SPREADSHEET=>T_COLUMN
 * +--------------------------------------------------------------------------------------</SIGNATURE>
   METHOD get_table_columns.
-    " Get standard fields
-    CALL FUNCTION 'DD_NAMETAB_TO_DDFIELDS'
-      EXPORTING
-        tabname  = iv_table_name
-      TABLES
-        ddfields = rt_fields.
+    " Clear parameter
+    CLEAR et_column.
+
+    LOOP AT CAST cl_abap_structdescr( cl_abap_structdescr=>describe_by_name( iv_table_name ) )->get_components( ) ASSIGNING FIELD-SYMBOL(<ls_comp>).
+      CHECK <ls_comp> IS ASSIGNED.
+
+      CHECK <ls_comp>-type->kind = cl_abap_structdescr=>kind_elem.
+      INSERT VALUE #( id           = sy-tabix
+                      name         = <ls_comp>-name
+                      display_name = <ls_comp>-name
+                      is_result    = abap_true
+                      type         = <ls_comp>-type ) INTO TABLE et_column.
+    ENDLOOP.
   ENDMETHOD.
 
 
@@ -384,7 +418,7 @@ CLASS ZCL_FILE_CRUD_OPERATIONS IMPLEMENTATION.
     ASSIGN mr_data->* TO <ft_any_table>.
 
     " Insert data
-    MODIFY (lv_table_name) FROM TABLE <ft_any_table>.
+    UPLOAD (lv_table_name) FROM TABLE <ft_any_table>.
     IF sy-subrc = 0.
       rv_message = 'Entries are modified successfully'.
     ELSE.
