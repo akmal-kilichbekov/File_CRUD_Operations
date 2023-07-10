@@ -3,7 +3,7 @@
 *&---------------------------------------------------------------------*
 *&
 *&---------------------------------------------------------------------*
-REPORT ZRP_UPLOAD_CRUD_FILE.
+REPORT zrp_upload_crud_file.
 
 TABLES sscrfields.
 DATA lv_message TYPE string.
